@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corporate Client Insights Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Tree Diagram Styles */
+        .tree ul {
+            position: relative;
+            padding-top: 1em;
+            transition: all 0.5s;
+            display: flex;
+        }
+
+        .tree li {
+            text-align: center;
+            list-style-type: none;
+            position: relative;
+            padding: 1em .5em 0 .5em;
+        }
+
+        .tree li::before, .tree li::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 50%;
+            border-top: 2px solid #ccc;
+            width: 50%;
+            height: 1em;
+        }
+
+        .tree li::after {
+            right: auto;
+            left: 50%;
+            border-left: 2px solid #ccc;
+        }
+
+        .tree li:only-child::after, .tree li:only-child::before {
+            display: none;
+        }
+
+        .tree li:only-child {
+            padding-top: 0;
+        }
+
+        .tree li:first-child::before, .tree li:last-child::after {
+            border: 0 none;
+        }
+
+        .tree li:last-child::before {
+            border-right: 2px solid #ccc;
+            border-radius: 0 5px 0 0;
+        }
+
+        .tree li:first-child::after {
+            border-radius: 5px 0 0 0;
+        }
+
+        .tree ul ul::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            border-left: 2px solid #ccc;
+            width: 0;
+            height: 1em;
+        }
+
+        .tree li .node {
+            border: 2px solid #ccc;
+            padding: .5em .75em;
+            text-decoration: none;
+            display: inline-block;
+            border-radius: 5px;
+            background-color: white;
+            color: #333;
+            transition: all 0.5s;
+        }
+        .tree li .node.is-client {
+            background-color: #dbeafe; /* blue-100 */
+            border-color: #3b82f6; /* blue-500 */
+            font-weight: bold;
+        }
+
+        .tree li .node:hover {
+            background: #eee;
+        }
+
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <div class="mb-4">
+            <div class="flex space-x-2">
+                <button class="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300">Individuals</button>
+                <button class="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300">Business</button>
+                <button class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md">Corporate</button>
+            </div>
+        </div>
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">Corporate Client Insights Dashboard</h1>
+            <p class="text-gray-600">Enter a client's name to retrieve their information.</p>
+        </header>
+
+        <!-- Search Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <div class="flex flex-col md:flex-row gap-4">
+                <input type="text" id="client-search" placeholder="Search for a client..." class="flex-grow p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="search-btn" class="bg-blue-600 text-white font-semibold px-6 py-3 rounded-md hover:bg-blue-700 transition duration-300">Search</button>
+            </div>
+        </div>
+
+        <!-- Client Information Display -->
+        <div id="dashboard-content" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- Column 1 -->
+                <div class="space-y-8 lg:col-span-1">
+                    <!-- Client Profile -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <div class="flex justify-between items-center mb-4 border-b pb-2">
+                           <h2 class="text-xl font-bold">Client Profile</h2>
+                        </div>
+                        <div class="space-y-3">
+                            <img id="client-logo" src="" alt="Client Logo" class="h-12 w-auto rounded-lg hidden mx-auto mb-4">
+                            <p><strong>Name:</strong> <span id="client-name" class="text-blue-600 hover:underline cursor-pointer font-semibold"></span></p>
+                            <p><strong>CIF Number:</strong> <span id="client-cif"></span></p>
+                            <p><strong>Industry/Sector:</strong> <span id="client-industry"></span></p>
+                            <p><strong>Description:</strong> <span id="client-description" class="text-sm text-gray-600"></span></p>
+                            <p><strong>Onboarding Date:</strong> <span id="client-onboarding"></span></p>
+                            <p><strong>Location:</strong> <span id="client-location"></span></p>
+                            <p><strong>Risk Rating:</strong> <span id="client-risk" class="px-3 py-1 text-sm font-medium rounded-full"></span></p>
+                            <p><strong>Climate Risk:</strong> <span id="client-climate-risk" class="px-3 py-1 text-sm font-medium rounded-full"></span></p>
+                            <p><strong>Level of Service:</strong> <span id="client-service-level" class="font-semibold"></span></p>
+                        </div>
+                    </div>
+
+                    <!-- Business Relations -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h2 class="text-xl font-bold mb-4 border-b pb-2">Business Relations</h2>
+                        <div id="relations-content">
+                            <button id="view-relations-btn" class="w-full bg-blue-100 text-blue-800 font-semibold px-4 py-2 rounded-md hover:bg-blue-200 transition duration-300">
+                                View Relationship Tree
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Account Ownership -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h2 class="text-xl font-bold mb-4 border-b pb-2">Account Ownership</h2>
+                        <ul id="directors-list" class="space-y-3">
+                            <!-- Directors will be injected here -->
+                        </ul>
+                    </div>
+
+                    <!-- Relationship Manager -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                         <div class="flex justify-between items-center mb-4 border-b pb-2">
+                           <h2 class="text-xl font-bold">Relationship Manager</h2>
+                        </div>
+                        <div class="space-y-3">
+                            <p><strong>Name:</strong> <span id="rm-name"></span></p>
+                            <p><strong>Email:</strong> <span id="rm-email" class="text-blue-600 hover:underline"></span></p>
+                            <p><strong>Phone:</strong> <span id="rm-phone"></span></p>
+                        </div>
+                    </div>
+
+                    <!-- Products Used -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h2 class="text-xl font-bold mb-4 border-b pb-2">Products Used</h2>
+                        <div id="products-list" class="flex flex-wrap gap-2">
+                            <!-- Products will be injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column 2 -->
+                <div class="space-y-8 lg:col-span-2">
+                     <!-- Key Metrics -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h2 class="text-xl font-bold mb-4 border-b pb-2">Key Metrics</h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <p class="text-gray-600 text-sm">Avg. Transfer Amount</p>
+                                <p class="text-xl font-semibold" id="avg-transfer"></p>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <p class="text-gray-600 text-sm">Last Transfer Date</p>
+                                <p class="text-xl font-semibold" id="last-transfer-date"></p>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <p class="text-gray-600 text-sm">Last Transfer Amount</p>
+                                <p class="text-xl font-semibold" id="last-transfer-amount"></p>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg">
+                                <p class="text-gray-600 text-sm">Max Transfer Amount</p>
+                                <p class="text-xl font-semibold" id="max-transfer"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent News -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h2 class="text-xl font-bold mb-4 border-b pb-2">Recent News</h2>
+                        <ul id="news-list" class="space-y-4">
+                           <!-- News items will be injected here -->
+                        </ul>
+                    </div>
+
+                     <!-- Accounts Held -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h2 class="text-xl font-bold mb-4 border-b pb-2">Accounts Held</h2>
+                        <div id="accounts-list">
+                            <!-- Account items will be injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Common Transfers Ranking -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-4 border-b pb-2">
+                            <h2 class="text-xl font-bold mb-2 sm:mb-0">Common Transfers</h2>
+                            <div id="transfer-filters" class="flex space-x-1 sm:space-x-2">
+                                <button data-period="daily" class="transfer-filter-btn px-2 sm:px-3 py-1 text-xs font-semibold text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300">Daily</button>
+                                <button data-period="weekly" class="transfer-filter-btn px-2 sm:px-3 py-1 text-xs font-semibold text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300">Weekly</button>
+                                <button data-period="monthly" class="transfer-filter-btn px-2 sm:px-3 py-1 text-xs font-semibold text-white bg-blue-600 rounded-md">Monthly</button>
+                                <button data-period="yearly" class="transfer-filter-btn px-2 sm:px-3 py-1 text-xs font-semibold text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300">Yearly</button>
+                            </div>
+                        </div>
+                        <div id="common-transfers-list" class="space-y-3">
+                            <!-- Ranked transfers will be injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Full Width Components -->
+                <div class="lg:col-span-3 space-y-8">
+                    <!-- Cash Flow Chart -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <div class="flex justify-between items-center mb-4 border-b pb-2">
+                           <h2 class="text-xl font-bold">Cash Flow Overview (Last 30 Days)</h2>
+                           <button id="toggle-chart-btn" class="text-sm bg-gray-200 text-gray-700 font-semibold px-3 py-1 rounded-md hover:bg-gray-300 transition duration-300">Expand</button>
+                        </div>
+                        <div id="cash-flow-container" class="h-40 overflow-hidden transition-all duration-500 ease-in-out">
+                            <canvas id="cash-flow-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Recent Transactions -->
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h2 class="text-xl font-bold mb-4 border-b pb-2">Recent Transfers</h2>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full bg-white">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="text-left py-3 px-4 font-semibold text-sm">Date</th>
+                                        <th class="text-left py-3 px-4 font-semibold text-sm">Description</th>
+                                        <th class="text-right py-3 px-4 font-semibold text-sm">Amount</th>
+                                        <th class="text-left py-3 px-4 font-semibold text-sm">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactions-body">
+                                    <!-- Transactions will be injected here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+         <!-- Initial Message -->
+        <div id="initial-message" class="text-center py-16">
+            <p class="text-gray-500">Please search for a client to display their dashboard.</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error-message" class="hidden text-center py-16">
+            <p class="text-red-500">Client not found. Please check the name and try again.</p>
+        </div>
+
+        <!-- Modal for Client Summary -->
+        <div id="summary-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 id="modal-title" class="text-2xl font-bold"></h3>
+                    <button id="modal-close-btn" class="text-3xl font-light text-gray-500 hover:text-gray-800">&times;</button>
+                </div>
+                <div id="modal-body" class="space-y-4">
+                    <p class="text-gray-700" id="modal-summary"></p>
+                    <a id="modal-website" href="#" target="_blank" rel="noopener noreferrer" class="inline-block text-blue-600 font-semibold hover:underline">
+                        Visit Website &rarr;
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal for Relations Tree -->
+        <div id="relations-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full h-full max-w-6xl mx-auto overflow-auto relative">
+                <button id="relations-modal-close-btn" class="absolute top-4 right-4 text-3xl font-light text-gray-500 hover:text-gray-800">&times;</button>
+                 <h3 class="text-2xl font-bold mb-4 text-center">Business Relationship Tree</h3>
+                <div class="tree-container overflow-x-auto p-4">
+                   <div id="tree-root" class="tree flex justify-center"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Mock data for clients
+        const clients = {
+            "innovate inc": {
+                name: "Innovate Inc.",
+                logo: "https://placehold.co/150x60/1e40af/ffffff?text=Innovate&font=inter",
+                industry: "Technology",
+                businessDescription: "Provides cloud-based software solutions for enterprise clients.",
+                onboardingDate: "2021-03-15",
+                riskRating: "Low",
+                climateRisk: { score: 85, rating: "Low" },
+                levelOfService: "Affluent",
+                cifNumber: "CIF-1001",
+                location: {
+                    county: "Nairobi County",
+                    city: "Nairobi",
+                    exactLocation: "123 Tech Avenue, Westlands"
+                },
+                summary: "A leading provider of cloud-based software solutions for enterprise resource planning and customer relationship management, serving over 5,000 businesses worldwide.",
+                website: "https://example.com/innovate",
+                relationshipManager: {
+                    name: "Jane Doe",
+                    email: "jane.doe@bank.com",
+                    phone: "123-456-7890"
+                },
+                directors: [
+                    { name: "Alex Johnson", title: "Chief Executive Officer" },
+                    { name: "Samantha Miller", title: "Chief Financial Officer" },
+                    { name: "David Chen", title: "Board Member" }
+                ],
+                relations: {
+                    name: 'Tech Holdings Group',
+                    children: [
+                        { name: 'Innovate Inc.', isClient: true, children: [
+                            { name: 'Data Solutions LLC' },
+                            { name: 'Cloud Services Co.' }
+                        ]},
+                        { name: 'Future Systems' }
+                    ]
+                },
+                recentNews: [
+                    { title: "Innovate Inc. Launches New AI Platform to Revolutionize Data Analytics", source: "Tech Crunch", date: "2024-09-05", link: "#" },
+                    { title: "Quarterly Earnings for Innovate Inc. Exceed Expectations", source: "Wall Street Journal", date: "2024-08-15", link: "#" }
+                ],
+                accounts: [
+                    { number: "123-456-7890", type: "Checking", balance: "1,250,000.00" },
+                    { number: "098-765-4321", type: "Savings", balance: "5,800,000.00" },
+                    { number: "567-890-1234", type: "Investment", balance: "12,300,000.00" }
+                ],
+                transfers: [
+                    { date: "2024-09-10", description: "Daily Vendor Payment", amount: -15000, status: "Completed", type: "RTGS" },
+                    { date: "2024-09-09", description: "Weekly Payroll Run", amount: -250000, status: "Completed", type: "Prime to Prime" },
+                    { date: "2024-09-08", description: "Incoming from Client Y", amount: 50000, status: "Completed", type: "TT" },
+                    { date: "2024-08-20", description: "Software License Fee", amount: -22000, status: "Completed", type: "Prime to Prime" },
+                    { date: "2024-08-17", description: "International Supplier", amount: -180000, status: "Completed", type: "TT" },
+                    { date: "2024-08-15", description: "Tax Payment", amount: -45000, status: "Completed", type: "iTax" },
+                    { date: "2024-05-12", description: "Local Vendor Payment", amount: -35000, status: "Completed", type: "RTGS" },
+                    { date: "2023-10-10", description: "Old Invoice Payment", amount: -15000, status: "Completed", type: "Outward Cheque" }
+                ],
+                productsUsed: ["PrimeNet", "Business Loan", "Forex Services"]
+            },
+            "global logistics": {
+                name: "Global Logistics",
+                logo: "https://placehold.co/150x60/d97706/ffffff?text=Global&font=inter",
+                industry: "Transportation & Logistics",
+                businessDescription: "International shipping and supply chain management services.",
+                onboardingDate: "2020-11-01",
+                riskRating: "Medium",
+                climateRisk: { score: 45, rating: "High" },
+                levelOfService: "Corporate",
+                cifNumber: "CIF-1002",
+                location: {
+                    county: "Mombasa County",
+                    city: "Mombasa",
+                    exactLocation: "456 Port Road, Shimanzi"
+                },
+                summary: "A major player in international shipping and supply chain management, with a fleet of over 200 cargo ships and operations in 50 countries.",
+                website: "https://example.com/global",
+                relationshipManager: {
+                    name: "John Smith",
+                    email: "john.smith@bank.com",
+                    phone: "987-654-3210"
+                },
+                directors: [
+                    { name: "Maria Garcia", title: "President & CEO" },
+                    { name: "Robert Wilson", title: "Chief Operations Officer" }
+                ],
+                relations: {
+                    name: 'Global Logistics', isClient: true
+                },
+                recentNews: [
+                    { title: "Global Logistics Announces Expansion into Southeast Asia", source: "Reuters", date: "2024-08-20", link: "#" }
+                ],
+                accounts: [
+                    { number: "555-666-7777", type: "Business Checking", balance: "3,400,000.00" },
+                    { number: "888-999-0000", type: "Foreign Currency", balance: "850,000.00" }
+                ],
+                transfers: [
+                    { date: "2024-07-29", description: "Fuel Surcharge Payment", amount: -120000, status: "Completed", type: "TT" },
+                    { date: "2024-07-26", description: "Port Fees", amount: -95000, status: "Completed", type: "RTGS" },
+                    { date: "2024-07-22", description: "Customs Duty", amount: -85000, status: "Completed", type: "RTGS" },
+                    { date: "2024-07-18", description: "Insurance Premium", amount: -30000, status: "Completed", type: "Prime to Prime" },
+                    { date: "2024-07-15", description: "International Client Payment", amount: 450000, status: "Completed", type: "TT" },
+                    { date: "2024-07-12", description: "Incoming Freight Payment", amount: 350000, status: "Completed", type: "TT" }
+                ],
+                productsUsed: ["Trade Finance", "RTGS", "TTs", "Multi-currency Account"]
+            },
+             "greenleaf organics": {
+                name: "Greenleaf Organics",
+                logo: "https://placehold.co/150x60/166534/ffffff?text=Greenleaf&font=inter",
+                industry: "Agriculture",
+                businessDescription: "Certified organic farm specializing in high-quality produce.",
+                onboardingDate: "2022-05-20",
+                riskRating: "Low",
+                climateRisk: { score: 68, rating: "Medium" },
+                levelOfService: "Business",
+                cifNumber: "CIF-1003",
+                 location: {
+                    county: "Nakuru County",
+                    city: "Naivasha",
+                    exactLocation: "789 Flower Farm Lane"
+                },
+                summary: "A certified organic farm specializing in high-quality produce for local markets and restaurants.",
+                website: "https://example.com/greenleaf",
+                relationshipManager: {
+                    name: "Sarah Lee",
+                    email: "sarah.lee@bank.com",
+                    phone: "555-123-4567"
+                },
+                directors: [
+                    { name: "Michael Brown", title: "Owner & Founder" }
+                ],
+                relations: null, // No complex relations
+                recentNews: [
+                    { title: "Greenleaf Organics Receives 'Farm of the Year' Award", source: "Local Gazette", date: "2024-09-01", link: "#" }
+                ],
+                accounts: [
+                    { number: "111-222-3333", type: "Operating Account", balance: "750,000.00" }
+                ],
+                transfers: [
+                    { date: "2024-07-30", description: "Purchase of farming equipment", amount: -50000, status: "Completed", type: "Outward Cheque" },
+                    { date: "2024-07-28", description: "Supplier Payment", amount: -15000, status: "Completed", type: "Outward Cheque" },
+                    { date: "2024-07-25", description: "Sale of produce to retailer", amount: 120000, status: "Completed", type: "Inward Cheque" },
+                    { date: "2024-07-22", description: "KRA Tax Payment", amount: -25000, status: "Completed", type: "iTax" },
+                    { date: "2024-07-20", description: "Salary payment", amount: -80000, status: "Completed", type: "Prime to Prime" }
+                ],
+                productsUsed: ["Asset Finance", "Business Overdraft"]
+            }
+        };
+
+        const searchBtn = document.getElementById('search-btn');
+        const clientSearch = document.getElementById('client-search');
+        const dashboardContent = document.getElementById('dashboard-content');
+        const initialMessage = document.getElementById('initial-message');
+        const errorMessage = document.getElementById('error-message');
+        
+        const summaryModal = document.getElementById('summary-modal');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+        
+        const relationsModal = document.getElementById('relations-modal');
+        const relationsModalCloseBtn = document.getElementById('relations-modal-close-btn');
+        const viewRelationsBtn = document.getElementById('view-relations-btn');
+
+        const toggleChartBtn = document.getElementById('toggle-chart-btn');
+        const cashFlowContainer = document.getElementById('cash-flow-container');
+        const transferFilterBtns = document.querySelectorAll('.transfer-filter-btn');
+
+        // Reference date for demonstrable filtering
+        const TODAY = new Date('2024-09-10T12:00:00Z');
+
+        let cashFlowChart = null;
+        let currentClientData = null;
+
+        // Event Listeners
+        searchBtn.addEventListener('click', searchClient);
+        clientSearch.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                searchClient();
+            }
+        });
+
+        document.getElementById('client-name').addEventListener('click', () => {
+            if (currentClientData) {
+                document.getElementById('modal-title').textContent = `${currentClientData.name} - Summary`;
+                const modalSummary = document.getElementById('modal-summary');
+                const modalWebsite = document.getElementById('modal-website');
+                modalSummary.textContent = currentClientData.summary;
+                modalWebsite.href = currentClientData.website;
+                
+                openModal(summaryModal);
+                generateClientSummary(currentClientData); // Call AI summary
+            }
+        });
+
+        modalCloseBtn.addEventListener('click', () => closeModal(summaryModal));
+        summaryModal.addEventListener('click', (event) => {
+            if (event.target === summaryModal) closeModal(summaryModal);
+        });
+
+        viewRelationsBtn.addEventListener('click', () => {
+            if (currentClientData && currentClientData.relations) {
+                renderTree(currentClientData.relations, document.getElementById('tree-root'));
+                openModal(relationsModal);
+            }
+        });
+
+        relationsModalCloseBtn.addEventListener('click', () => closeModal(relationsModal));
+        relationsModal.addEventListener('click', (event) => {
+             if (event.target === relationsModal) closeModal(relationsModal);
+        });
+        
+        toggleChartBtn.addEventListener('click', () => {
+            const isExpanded = cashFlowContainer.classList.contains('h-80');
+            if (isExpanded) {
+                cashFlowContainer.classList.remove('h-80');
+                cashFlowContainer.classList.add('h-40');
+                toggleChartBtn.textContent = 'Expand';
+            } else {
+                cashFlowContainer.classList.remove('h-40');
+                cashFlowContainer.classList.add('h-80');
+                toggleChartBtn.textContent = 'Collapse';
+            }
+        });
+
+        transferFilterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                transferFilterBtns.forEach(b => {
+                    b.classList.remove('bg-blue-600', 'text-white');
+                    b.classList.add('bg-gray-200', 'text-gray-600');
+                });
+                btn.classList.add('bg-blue-600', 'text-white');
+                btn.classList.remove('bg-gray-200', 'text-gray-600');
+                
+                const period = btn.dataset.period;
+                filterAndPopulateTransfers(period);
+            });
+        });
+
+        function searchClient() {
+            const query = clientSearch.value.toLowerCase().trim();
+            const clientData = clients[query];
+
+            initialMessage.classList.add('hidden');
+            if (clientData) {
+                currentClientData = clientData;
+                populateDashboard(clientData);
+                dashboardContent.classList.remove('hidden');
+                errorMessage.classList.add('hidden');
+            } else {
+                dashboardContent.classList.add('hidden');
+                errorMessage.classList.remove('hidden');
+            }
+        }
+
+        function populateDashboard(data) {
+            // Populate Client Profile
+            const clientNameEl = document.getElementById('client-name');
+            clientNameEl.textContent = data.name;
+            document.getElementById('client-cif').textContent = data.cifNumber;
+            document.getElementById('client-logo').src = data.logo;
+            document.getElementById('client-logo').classList.remove('hidden');
+            document.getElementById('client-industry').textContent = data.industry;
+            document.getElementById('client-description').textContent = data.businessDescription;
+            document.getElementById('client-onboarding').textContent = data.onboardingDate;
+            document.getElementById('client-location').textContent = `${data.location.county}, ${data.location.city}, ${data.location.exactLocation}`;
+            document.getElementById('client-service-level').textContent = data.levelOfService;
+            
+            const riskRatingEl = document.getElementById('client-risk');
+            riskRatingEl.textContent = data.riskRating;
+            riskRatingEl.className = 'px-3 py-1 text-sm font-medium rounded-full'; // Reset classes
+            if (data.riskRating === 'Low') {
+                riskRatingEl.classList.add('bg-green-100', 'text-green-800');
+            } else if (data.riskRating === 'Medium') {
+                riskRatingEl.classList.add('bg-yellow-100', 'text-yellow-800');
+            } else {
+                riskRatingEl.classList.add('bg-red-100', 'text-red-800');
+            }
+
+            const climateRiskEl = document.getElementById('client-climate-risk');
+            climateRiskEl.textContent = `${data.climateRisk.rating} (${data.climateRisk.score}/100)`;
+            climateRiskEl.className = 'px-3 py-1 text-sm font-medium rounded-full'; // Reset classes
+            if (data.climateRisk.rating === 'Low') {
+                climateRiskEl.classList.add('bg-green-100', 'text-green-800');
+            } else if (data.climateRisk.rating === 'Medium') {
+                climateRiskEl.classList.add('bg-yellow-100', 'text-yellow-800');
+            } else { // High
+                climateRiskEl.classList.add('bg-red-100', 'text-red-800');
+            }
+
+            // Populate Business Relations
+            const relationsContent = document.getElementById('relations-content');
+            if (data.relations) {
+                relationsContent.innerHTML = `<button id="view-relations-btn" class="w-full bg-blue-100 text-blue-800 font-semibold px-4 py-2 rounded-md hover:bg-blue-200 transition duration-300">View Relationship Tree</button>`;
+                document.getElementById('view-relations-btn').addEventListener('click', () => {
+                    renderTree(data.relations, document.getElementById('tree-root'));
+                    openModal(relationsModal);
+                });
+            } else {
+                 relationsContent.innerHTML = `<p class="text-gray-500 text-center">No direct business relations on file.</p>`;
+            }
+            
+            // Populate Relationship Manager
+            document.getElementById('rm-name').textContent = data.relationshipManager.name;
+            document.getElementById('rm-email').textContent = data.relationshipManager.email;
+            document.getElementById('rm-email').href = `mailto:${data.relationshipManager.email}`;
+            document.getElementById('rm-phone').textContent = data.relationshipManager.phone;
+            
+            // Populate Account Ownership
+            const directorsList = document.getElementById('directors-list');
+            directorsList.innerHTML = '';
+            data.directors.forEach(director => {
+                const li = document.createElement('li');
+                li.className = 'flex flex-col';
+                li.innerHTML = `<span class="font-semibold">${director.name}</span><span class="text-sm text-gray-500">${director.title}</span>`;
+                directorsList.appendChild(li);
+            });
+
+            // Populate Products Used
+            const productsList = document.getElementById('products-list');
+            productsList.innerHTML = '';
+            if (data.productsUsed && data.productsUsed.length > 0) {
+                data.productsUsed.forEach(product => {
+                    const span = document.createElement('span');
+                    span.className = 'bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full';
+                    span.textContent = product;
+                    productsList.appendChild(span);
+                });
+            } else {
+                productsList.innerHTML = '<p class="text-gray-500">No specific products listed.</p>';
+            }
+
+            // Populate Recent News
+            const newsList = document.getElementById('news-list');
+            newsList.innerHTML = '';
+            data.recentNews.forEach(news => {
+                const li = document.createElement('li');
+                li.className = 'border-l-4 border-blue-500 pl-4';
+                li.innerHTML = `
+                    <a href="${news.link}" target="_blank" class="font-semibold text-blue-700 hover:underline">${news.title}</a>
+                    <p class="text-sm text-gray-500">${news.source} - ${news.date}</p>
+                `;
+                newsList.appendChild(li);
+            });
+
+            // Populate Accounts Held
+            const accountsList = document.getElementById('accounts-list');
+            accountsList.innerHTML = '';
+            const accountsContainer = document.createElement('div');
+            accountsContainer.className = 'space-y-4';
+            data.accounts.forEach(account => {
+                const accountDiv = document.createElement('div');
+                accountDiv.className = 'p-4 bg-gray-50 rounded-lg';
+                accountDiv.innerHTML = `
+                    <p class="font-bold">${account.type} Account</p>
+                    <p class="text-sm text-gray-600">A/C no: ${account.number}</p>
+                    <p class="text-lg font-semibold mt-1">KES ${account.balance}</p>
+                `;
+                accountsContainer.appendChild(accountDiv);
+            });
+            accountsList.appendChild(accountsContainer);
+
+            // Populate Metrics and Transactions
+            const transfers = data.transfers;
+            if (transfers && transfers.length > 0) {
+                const lastTransfer = transfers.sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+                const transferAmounts = transfers.map(t => Math.abs(t.amount));
+                const totalTransferAmount = transferAmounts.reduce((sum, amount) => sum + amount, 0);
+                const avgTransfer = totalTransferAmount / transfers.length;
+                const maxTransfer = Math.max(...transferAmounts);
+
+                document.getElementById('avg-transfer').textContent = `KES ${avgTransfer.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                document.getElementById('last-transfer-date').textContent = lastTransfer.date;
+                document.getElementById('last-transfer-amount').textContent = `KES ${Math.abs(lastTransfer.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                document.getElementById('max-transfer').textContent = `KES ${maxTransfer.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+                const transactionsBody = document.getElementById('transactions-body');
+                transactionsBody.innerHTML = '';
+                data.transfers.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5).forEach(t => { // Show last 5
+                    const row = document.createElement('tr');
+                    row.className = 'border-b';
+                    const amountClass = t.amount < 0 ? 'text-red-600' : 'text-green-600';
+                    const statusClass = t.status === 'Completed' ? 'text-green-700 bg-green-100' : 'text-yellow-700 bg-yellow-100';
+                    row.innerHTML = `
+                        <td class="py-3 px-4">${t.date}</td>
+                        <td class="py-3 px-4">${t.description}</td>
+                        <td class="py-3 px-4 text-right font-mono ${amountClass}">${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td class="py-3 px-4"><span class="px-2 py-1 text-xs font-semibold rounded-full ${statusClass}">${t.status}</span></td>
+                    `;
+                    transactionsBody.appendChild(row);
+                });
+             }
+
+            // Populate Common Transfers with default filter
+            filterAndPopulateTransfers('monthly');
+
+            // Chart
+            renderCashFlowChart(data.transfers);
+        }
+        
+        function renderTree(nodeData, container) {
+            container.innerHTML = ''; // Clear previous tree
+            
+            const ul = document.createElement('ul');
+            const li = document.createElement('li');
+            
+            const nodeEl = document.createElement('div');
+            nodeEl.className = 'node';
+            if(nodeData.isClient) {
+                 nodeEl.classList.add('is-client');
+            }
+            nodeEl.textContent = nodeData.name;
+            li.appendChild(nodeEl);
+            
+            if (nodeData.children && nodeData.children.length > 0) {
+                const childrenUl = document.createElement('ul');
+                nodeData.children.forEach(child => {
+                    const childLi = createTreeBranch(child);
+                    childrenUl.appendChild(childLi);
+                });
+                li.appendChild(childrenUl);
+            }
+            
+            ul.appendChild(li);
+            container.appendChild(ul);
+        }
+
+        function createTreeBranch(nodeData) {
+            const li = document.createElement('li');
+            const nodeEl = document.createElement('div');
+            nodeEl.className = 'node';
+             if(nodeData.isClient) {
+                 nodeEl.classList.add('is-client');
+            }
+            nodeEl.textContent = nodeData.name;
+            li.appendChild(nodeEl);
+
+            if (nodeData.children && nodeData.children.length > 0) {
+                const childrenUl = document.createElement('ul');
+                nodeData.children.forEach(child => {
+                    childrenUl.appendChild(createTreeBranch(child));
+                });
+                li.appendChild(childrenUl);
+            }
+            return li;
+        }
+
+
+        function filterAndPopulateTransfers(period) {
+            if (!currentClientData) return;
+            const now = TODAY;
+            
+            const filteredTransfers = currentClientData.transfers.filter(t => {
+                const transferDate = new Date(t.date);
+                
+                const startOfNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const startOfTransferDate = new Date(transferDate.getFullYear(), transferDate.getMonth(), transferDate.getDate());
+                
+                const diffTime = startOfNow - startOfTransferDate;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                switch (period) {
+                    case 'daily':
+                        return startOfTransferDate.getTime() === startOfNow.getTime();
+                    case 'weekly':
+                        return diffDays >= 0 && diffDays < 7;
+                    case 'monthly':
+                        return diffDays >= 0 && diffDays < 30;
+                    case 'yearly':
+                        return diffDays >= 0 && diffDays < 365;
+                    default:
+                        return true;
+                }
+            });
+
+            populateCommonTransfers(filteredTransfers);
+        }
+
+        function populateCommonTransfers(transfers) {
+            const commonTransfersList = document.getElementById('common-transfers-list');
+            commonTransfersList.innerHTML = '';
+
+            if (transfers && transfers.length > 0) {
+                const transferCounts = transfers.reduce((acc, transfer) => {
+                    acc[transfer.type] = (acc[transfer.type] || 0) + 1;
+                    return acc;
+                }, {});
+
+                const sortedTransfers = Object.entries(transferCounts)
+                    .sort(([, a], [, b]) => b - a);
+
+                if (sortedTransfers.length > 0) {
+                    const maxCount = sortedTransfers[0][1];
+
+                    sortedTransfers.forEach(([type, count]) => {
+                        const barWidth = (count / maxCount) * 100;
+                        const transferItem = document.createElement('div');
+                        transferItem.className = 'grid grid-cols-3 items-center gap-4 text-sm';
+
+                        transferItem.innerHTML = `
+                            <span class="font-semibold col-span-1">${type}</span>
+                            <div class="col-span-2 flex items-center">
+                                <div class="w-full bg-gray-200 rounded-full h-4">
+                                    <div class="bg-blue-500 h-4 rounded-full" style="width: ${barWidth}%"></div>
+                                </div>
+                                <span class="ml-3 font-mono font-semibold">${count}</span>
+                            </div>
+                        `;
+                        commonTransfersList.appendChild(transferItem);
+                    });
+                } else {
+                     commonTransfersList.innerHTML = '<p class="text-gray-500 text-center">No transfers in this period.</p>';
+                }
+            } else {
+                 commonTransfersList.innerHTML = '<p class="text-gray-500 text-center">No transfers in this period.</p>';
+            }
+        }
+
+        function renderCashFlowChart(transfers) {
+            const ctx = document.getElementById('cash-flow-chart').getContext('2d');
+            
+            if (cashFlowChart) {
+                cashFlowChart.destroy();
+            }
+            
+            if (!transfers || transfers.length === 0) return;
+
+            // Aggregate data by date
+            const aggregatedData = {};
+            transfers.forEach(t => {
+                if (!aggregatedData[t.date]) {
+                    aggregatedData[t.date] = { credit: 0, debit: 0 };
+                }
+                if (t.amount > 0) {
+                    aggregatedData[t.date].credit += t.amount;
+                } else {
+                    aggregatedData[t.date].debit += Math.abs(t.amount);
+                }
+            });
+
+            const sortedDates = Object.keys(aggregatedData).sort((a, b) => new Date(a) - new Date(b));
+            
+            const labels = sortedDates;
+            const creditData = sortedDates.map(date => aggregatedData[date].credit);
+            const debitData = sortedDates.map(date => aggregatedData[date].debit);
+
+            cashFlowChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Credits (KES)',
+                            data: creditData,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Debits (KES)',
+                            data: debitData,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                             callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'KES' }).format(context.parsed.y);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function openModal(modal) {
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal(modal) {
+            modal.classList.add('hidden');
+        }
+
+        // Gemini API call for summary
+        async function generateClientSummary(clientData) {
+            const modalBody = document.getElementById('modal-body');
+            const originalContent = modalBody.innerHTML;
+            modalBody.innerHTML = '<div class="flex justify-center items-center h-24"><div class="loader"></div><p class="ml-4">Generating AI summary...</p></div>';
+
+            const systemPrompt = "You are a banking analyst. Your task is to provide a concise, insightful summary of a corporate client based on the provided data. Highlight key activities, recent news, and potential areas of interest for a relationship manager. The summary should be a single, well-written paragraph.";
+            
+            const userQuery = `Please generate a summary for the client "${clientData.name}". 
+            Industry: ${clientData.industry}. 
+            Recent News: ${clientData.recentNews.map(n => n.title).join('; ')}. 
+            Recent Transactions: ${clientData.transfers.slice(0, 3).map(t => `${t.description} of KES ${Math.abs(t.amount)}`).join('; ')}.`;
+            
+            const apiKey = ""; // API key is handled by the environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (text) {
+                    modalBody.innerHTML = `
+                        <p class="text-gray-700">${text}</p>
+                        <a href="${clientData.website}" target="_blank" rel="noopener noreferrer" class="inline-block text-blue-600 font-semibold hover:underline">
+                            Visit Website &rarr;
+                        </a>
+                    `;
+                } else {
+                     throw new Error("No summary generated.");
+                }
+            } catch (error) {
+                console.error('Error generating AI summary:', error);
+                modalBody.innerHTML = originalContent; // Restore original content on error
+                document.getElementById('modal-summary').textContent = clientData.summary + " (Could not generate AI summary. Showing default.)";
+                document.getElementById('modal-website').href = clientData.website;
+            }
+        }
+    </script>
+</body>
+</html>
+
